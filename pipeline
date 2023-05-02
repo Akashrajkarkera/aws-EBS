@@ -1,18 +1,34 @@
 pipeline {
-    agent any
-    environment {
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
-        AWS_REGION = 'us-west-2'
+  agent any
+
+  environment {
+    AWS_REGION = 'ap-south-1'
+    AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
+    AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+  }
+
+  stages {
+    stage('Build') {
+      steps {
+        sh 'mvn clean package'
+      }
     }
-    stages {
-        stage('Deploy to AWS Elastic Beanstalk') {
-            steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
-                    sh 'eb init -r $AWS_REGION -p "64bit Amazon Linux 2 v3.1.0 running Docker" my-application-name'
-                    sh 'eb deploy my-environment-name --staged'
-                }
-            }
+
+    stage('Deploy') {
+      steps {
+        withAWS(region: AWS_REGION, credentials: 'aws-credentials') {
+          def versionLabel = "${env.JOB_NAME}-${env.BUILD_NUMBER}"
+          def bucketName = "elasticbeanstalk-us-west-2-${AWS_ACCESS_KEY_ID}"
+          s3Upload(file: 'target/myapp.war', bucket: bucketName, path: "builds/${versionLabel}.war")
+          elasticBeanstalk(
+            applicationName: 'myapp',
+            environmentName: 'myapp-dev',
+            bucketName: bucketName,
+            key: "builds/${versionLabel}.war",
+            versionLabel: versionLabel
+          )
         }
+      }
     }
+  }
 }
