@@ -10,7 +10,9 @@ pipeline {
   stages {
     stage('Build') {
       steps {
-        sh 'mvn clean package'
+        sh 'npm install'
+        sh 'npm run build'
+        zip zipFile: 'myapp.zip', archive: false, dir: 'build'
       }
     }
 
@@ -19,12 +21,12 @@ pipeline {
         withAWS(region: AWS_REGION, credentials: 'aws-credentials') {
           def versionLabel = "${env.JOB_NAME}-${env.BUILD_NUMBER}"
           def bucketName = "elasticbeanstalk-us-west-2-${AWS_ACCESS_KEY_ID}"
-          s3Upload(file: 'target/myapp.war', bucket: bucketName, path: "builds/${versionLabel}.war")
+          s3Upload(file: 'myapp.zip', bucket: bucketName, path: "builds/${versionLabel}.zip")
           elasticBeanstalk(
             applicationName: 'myapp',
             environmentName: 'myapp-dev',
             bucketName: bucketName,
-            key: "builds/${versionLabel}.war",
+            key: "builds/${versionLabel}.zip",
             versionLabel: versionLabel
           )
         }
